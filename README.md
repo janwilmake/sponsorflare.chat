@@ -1,3 +1,6 @@
-# Template for [sponsorflare](https://github.com/janwilmake/cloudflare-sponsorware) in a cloudflare worker
+# Chat with monetisation
 
-To start with this: `gh repo create --public myreponame -p sponsorflare.template`
+- Powerd by Deepseek R1 on Cloudflare and https://sponsorflare.com
+- Requires login before the first message can be sent with smooth onboarding
+- Streams and remembers history
+- Requires payment if logged in user spent more than $1.00

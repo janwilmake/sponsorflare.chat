@@ -1,14 +1,17 @@
-name = "your_worker"
+name = "sponsorflare_chat"
 main = "main.ts"
 compatibility_date = "2025-01-29"
 
 routes = [
-  { pattern = "domain.wilmake.com", custom_domain = true }
+  { pattern = "chat.sponsorflare.com", custom_domain = true }
 ]
+
+[ai]
+binding = "AI"
 
 [vars]
 # Change depending on where you want to redirect from github oauth client
-GITHUB_REDIRECT_URI = "https://dashboard.uithub.com/callback"
+GITHUB_REDIRECT_URI = "https://sponsorflare.com/callback"
 # Change to redirect elsewhere by default after the callback
 LOGIN_REDIRECT_URI = "/"
 # Set to true to share the cookie across all the main domain and all subdomains

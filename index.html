@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+
+    <style>
+        .message-bubble {
+            max-width: 70%;
+            /* Reduced from 80% to prevent squishing */
+            word-wrap: break-word;
+        }
+
+        .bounce-in-right {
+            animation: bounce-in-right 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+        }
+
+        .bounce-in-left {
+            animation: bounce-in-left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+        }
+
+        @keyframes bounce-in-right {
+            0% {
+                transform: translateX(600px);
+                opacity: 0;
+            }
+
+            60% {
+                transform: translateX(-25px);
+                opacity: 0.6;
+            }
+
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes bounce-in-left {
+            0% {
+                transform: translateX(-600px);
+                opacity: 0;
+            }
+
+            60% {
+                transform: translateX(25px);
+                opacity: 0.6;
+            }
+
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .markdown-content {
+            color: inherit;
+        }
+
+        .markdown-content pre {
+            background-color: #1f2937;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .markdown-content code {
+            background-color: #374151;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+
+        .think-content {
+            color: #f97316;
+            font-style: italic;
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            border-left: 3px solid #f97316;
+        }
+    </style>
+</head>
+
+<body class="bg-black h-screen flex flex-col">
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-zinc-800 p-6 rounded-lg shadow-xl">
+            <h2 class="text-white text-xl mb-4">Payment Required</h2>
+            <p class="text-white mb-6">You have spent $1 of my money! Please sponsor me to continue using this product
+                (or ask very nicely)
+            </p>
+            <div class="flex justify-end space-x-4">
+                <button onclick="closePaymentModal()"
+                    class="px-4 py-2 bg-zinc-600 text-white rounded hover:bg-zinc-700">Cancel</button>
+                <button id="confirmPayment"
+                    class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Continue to Payment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Info Bar -->
+    <div id="userInfo" class="bg-zinc-900 border-b border-zinc-800 p-4">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <img id="userAvatar" class="w-8 h-8 rounded-full hidden">
+                <span id="userName" class="text-white hidden"></span>
+            </div>
+            <a target="_blank" href="https://github.com/sponsors/janwilmake">
+                <div id="userBudget" class="text-white hidden">
+                    Budget: $<span id="budgetAmount">0</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="flex-1 max-w-5xl mx-auto w-full p-4 flex flex-col">
+        <!-- Chat Messages -->
+        <div id="chatMessages"
+            class="flex-1 overflow-y-auto mb-4 space-y-4 p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+            <!-- Welcome Message -->
+            <div class="flex items-start space-x-2 bounce-in-left">
+                <div class="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">
+                    <span class="text-black font-bold">A</span>
+                </div>
+                <div class="message-bubble bg-zinc-800 p-3 rounded-lg">
+                    <p class="text-white">Hello! How can I assist you today?</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="bg-zinc-900 rounded-lg border border-zinc-800 p-4">
+            <form id="chatForm" class="flex space-x-4">
+                <input type="text" id="messageInput"
+                    class="flex-1 p-2 rounded-lg bg-zinc-800 text-white border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Type your message...">
+                <button type="submit"
+                    class="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        marked.setOptions({
+            highlight: function (code, language) {
+                if (language && hljs.getLanguage(language)) {
+                    return hljs.highlight(code, { language: language }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            breaks: true,
+            gfm: true
+        });
+
+        function initializeSponsorUI() {
+            const sponsor = window.data.sponsor;
+            if (sponsor) {
+                if (sponsor.avatar_url) {
+                    const avatar = document.getElementById('userAvatar');
+                    avatar.src = sponsor.avatar_url;
+                    avatar.classList.remove('hidden');
+                }
+                if (sponsor.owner_login) {
+                    const userName = document.getElementById('userName');
+                    userName.textContent = sponsor.owner_login;
+                    userName.classList.remove('hidden');
+                }
+                const budget = ((sponsor.clv || 0) - (sponsor.spent || 0)) / 100;
+                const budgetElement = document.getElementById('userBudget');
+                document.getElementById('budgetAmount').textContent = budget.toFixed(2);
+                budgetElement.classList.remove('hidden');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const storedMessage = localStorage.getItem('pendingMessage');
+            if (storedMessage) {
+                document.getElementById('messageInput').value = storedMessage;
+                localStorage.removeItem('pendingMessage');
+            }
+            initializeSponsorUI();
+        });
+
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const paymentModal = document.getElementById('paymentModal');
+        let messages = [];
+        let paymentUrl = '';
+
+        function showPaymentModal(url) {
+            paymentUrl = url;
+            paymentModal.classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            paymentModal.classList.add('hidden');
+        }
+
+        document.getElementById('confirmPayment').addEventListener('click', () => {
+            if (paymentUrl) {
+                window.location.href = paymentUrl;
+            }
+        });
+
+        function addMessage(message, sender, isStreaming = false) {
+            const messageId = Date.now().toString();
+            let messageDiv = isStreaming ? document.querySelector('.streaming-message') : null;
+
+            if (!messageDiv) {
+                messageDiv = document.createElement('div');
+                messageDiv.className = `flex items-start space-x-2 ${sender === 'user' ? 'flex-row-reverse space-x-reverse bounce-in-right' : 'bounce-in-left'}`;
+                messageDiv.dataset.messageId = messageId;
+
+                if (isStreaming) {
+                    messageDiv.classList.add('streaming-message');
+                }
+
+                const avatar = document.createElement('div');
+                avatar.className = `w-8 h-8 rounded-full ${sender === 'user' ? 'bg-zinc-700' : 'bg-orange-500'} flex items-center justify-center`;
+                avatar.innerHTML = `<span class="${sender === 'user' ? 'text-white' : 'text-black'} font-bold">${sender === 'user' ? 'U' : 'A'}</span>`;
+
+                const bubble = document.createElement('div');
+                bubble.className = `message-bubble ${sender === 'user' ? 'bg-orange-500' : 'bg-zinc-800'} p-3 rounded-lg`;
+
+                const content = document.createElement('div');
+                content.className = `${sender === 'assistant' ? 'markdown-content' : ''} text-white`;
+                bubble.appendChild(content);
+
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(bubble);
+                chatMessages.appendChild(messageDiv);
+            }
+
+            // Get the content div, searching within the specific message div
+            const content = messageDiv.querySelector(sender === 'assistant' ? '.markdown-content' : 'div.text-white');
+
+            if (!content) {
+                console.error('Content element not found');
+                return messageId;
+            }
+
+            try {
+                if (sender === 'assistant') {
+                    // Set the content HTML using marked
+                    const parsedContent = marked.parse(message);
+                    content.innerHTML = parsedContent;
+
+                    // Apply syntax highlighting
+                    messageDiv.querySelectorAll('pre code').forEach((block) => {
+                        hljs.highlightBlock(block);
+                    });
+                } else {
+                    content.textContent = message;
+                }
+            } catch (error) {
+                console.error('Error updating message content:', error);
+            }
+
+            // Ensure scroll to bottom
+            setTimeout(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 0);
+
+            return messageId;
+        }
+
+        async function processStream(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let currentMessageId = null;
+
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const events = chunk.split('\n\n');
+
+                    for (const event of events) {
+                        if (event.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(event.slice(6));
+                                if (data.response) {
+                                    // Append new content to buffer
+                                    buffer += data.response;
+
+                                    // Process the full content for think tags and markdown
+                                    let processedContent = buffer
+                                        .replace(/<think>/g, '<div class="think-content">')
+                                        .replace(/<\/think>/g, '</div>');
+
+                                    if (!currentMessageId) {
+                                        // Create new streaming message
+                                        currentMessageId = addMessage(processedContent, 'assistant', true);
+                                    } else {
+                                        // Update existing message
+                                        const messageElement = document.querySelector(`[data-message-id="${currentMessageId}"]`);
+                                        if (messageElement) {
+                                            const contentDiv = messageElement.querySelector('.markdown-content');
+                                            if (contentDiv) {
+                                                // Update content with full processed buffer
+                                                contentDiv.innerHTML = marked.parse(processedContent);
+                                                messageElement.querySelectorAll('pre code').forEach((block) => {
+                                                    hljs.highlightBlock(block);
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('Error processing chunk:', e, event);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Stream processing error:', e);
+            }
+
+            return buffer;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            messageInput.value = '';
+            addMessage(message, 'user');
+            messages.push({ role: "user", content: message });
+
+            // Remove any existing streaming message before starting a new one
+            const existingStreaming = document.querySelector('.streaming-message');
+            if (existingStreaming) {
+                existingStreaming.classList.remove('streaming-message');
+            }
+
+            try {
+                const response = await fetch("/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ messages }),
+                });
+
+                if (response.status === 401) {
+                    localStorage.setItem('pendingMessage', message);
+                    window.location.href = '/login?redirect_uri=https://chat.sponsorflare.com';
+                    return;
+                }
+
+                if (response.status === 402) {
+                    showPaymentModal(response.headers.get('x-payment-url'));
+                    return;
+                }
+
+                if (!response.ok) throw new Error('Network response was not ok:' + response.status);
+
+                // Start new streaming response
+                const responseText = await processStream(response);
+
+                // After streaming is complete, add to messages array and finalize
+                messages.push({ role: "assistant", content: responseText });
+
+                // Remove streaming class from the completed message
+                const streamingMessage = document.querySelector('.streaming-message');
+                if (streamingMessage) {
+                    streamingMessage.classList.remove('streaming-message');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error processing your request.', 'assistant');
+            }
+
+            messageInput.focus();
+        });
+    </script>
+</body>
+
+</html>
